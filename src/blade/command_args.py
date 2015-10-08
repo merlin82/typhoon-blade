@@ -54,9 +54,12 @@ class CmdArguments(object):
                   'run':   self._check_run_command,
                   'test':  self._check_test_command,
                   'clean': self._check_clean_command,
-                  'query': self._check_query_command
+                  'query': self._check_query_command,
+                  'root': None
                   }
-        actions[command]()
+                  
+        if actions[command] is not None:
+            actions[command]()
 
     def _check_run_targets(self):
         """check that run command should have only one target. """
@@ -352,6 +355,10 @@ class CmdArguments(object):
             'query',
             help='Execute a dependency graph query')
 
+        root_parser = sub_parser.add_parser(
+            'root',
+            help='get blade root directory')     
+            
         self._add_build_arguments(build_parser)
         self._add_build_arguments(run_parser)
         self._add_build_arguments(test_parser)

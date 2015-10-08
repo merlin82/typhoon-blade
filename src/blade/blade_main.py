@@ -222,6 +222,10 @@ def _main(blade_path):
     # directory.  Set working_dir to current directory.
     working_dir = get_cwd()
     blade_root_dir = find_blade_root_dir(working_dir)
+    if command == 'root': 
+        print blade_root_dir
+        return 0;
+    
     os.chdir(blade_root_dir)
 
     if blade_root_dir != working_dir:
