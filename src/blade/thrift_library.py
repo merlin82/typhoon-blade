@@ -55,7 +55,7 @@ class ThriftLibrary(CcTarget):
                           srcs,
                           deps,
                           '',
-                          [], [], [], optimize, [], [],
+                          [], [], [], optimize, [], [],'',[],
                           blade,
                           kwargs)
         self.data['python_vars'] = []

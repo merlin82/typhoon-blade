@@ -46,7 +46,7 @@ class ProtoLibrary(CcTarget):
                           srcs,
                           deps,
                           '',
-                          [], [], [], optimize, [], [],
+                          [], [], [], optimize, [], [],'',[],
                           blade,
                           kwargs)
 

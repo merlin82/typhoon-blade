@@ -48,7 +48,7 @@ class ResourceLibrary(CcTarget):
                           [],
                           optimize,
                           extra_cppflags,
-                          [],
+                          [],'',[],
                           blade,
                           kwargs)
 

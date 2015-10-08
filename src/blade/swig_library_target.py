@@ -46,7 +46,7 @@ class SwigLibrary(CcTarget):
                           srcs,
                           deps,
                           warning,
-                          [], [], [], optimize, extra_swigflags, [],
+                          [], [], [], optimize, extra_swigflags, [],'',[],
                           blade,
                           kwargs)
         self.data['cpperraswarn'] = warning

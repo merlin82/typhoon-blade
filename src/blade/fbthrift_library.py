@@ -62,7 +62,7 @@ class FBThriftLibrary(CcTarget):
                           srcs,
                           deps,
                           '',
-                          [], [], [], optimize, [], [],
+                          [], [], [], optimize, [], [],'',[],
                           blade,
                           kwargs)
 

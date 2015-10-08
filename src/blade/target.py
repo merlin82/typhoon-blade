@@ -14,7 +14,7 @@
 
 import os
 import string
-
+import glob
 import configparse
 import console
 from blade_util import var_to_list
@@ -56,12 +56,26 @@ class Target(object):
 
         self._check_name()
         self._check_kwargs(kwargs)
+        self._wildcard_srcs()
         self._check_srcs()
         self._check_deps_in_build_file(deps)
         self._init_target_deps(deps)
         self.scons_rule_buf = []
         self.__cached_generate_header_files = None
-
+    def _wildcard_srcs(self):
+        """wildcard srcs, support *.cpp"""
+        old_srcs = self.srcs[:]
+        for s in old_srcs:
+            if '*' in s :
+                rel_dir = os.path.dirname(s)                
+                self.srcs.remove(s)
+                pathname = os.path.join(self.path, s)
+                files = glob.glob(pathname)
+                
+                for filename in files :
+                    filename = os.path.join(rel_dir,os.path.basename(filename))
+                    self.srcs.append(filename)
+                
     def _clone_env(self):
         """Clone target's environment. """
         self._write_rule('%s = top_env.Clone()' % self._env_name())

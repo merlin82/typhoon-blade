@@ -44,7 +44,7 @@ class LexYaccLibrary(CcTarget):
                           srcs,
                           deps,
                           'yes',
-                          [], [], [], [], [], [],
+                          [], [], [], [], [], [],'',[],
                           blade,
                           kwargs)
         self.data['recursive'] = recursive

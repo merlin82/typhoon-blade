@@ -41,6 +41,8 @@ class CcTarget(Target):
                  optimize,
                  extra_cppflags,
                  extra_linkflags,
+                 install_dir,
+                 extra_cmds,
                  blade,
                  kwargs):
         """Init method.
@@ -56,7 +58,8 @@ class CcTarget(Target):
         opt = var_to_list(optimize)
         extra_cppflags = var_to_list(extra_cppflags)
         extra_linkflags = var_to_list(extra_linkflags)
-
+        extra_cmds = var_to_list(extra_cmds)
+        
         Target.__init__(self,
                         name,
                         target_type,
@@ -72,6 +75,8 @@ class CcTarget(Target):
         self.data['optimize'] = opt
         self.data['extra_cppflags'] = extra_cppflags
         self.data['extra_linkflags'] = extra_linkflags
+        self.data['install_dir'] = install_dir
+        self.data['extra_cmds'] = extra_cmds
 
         self._check_defs()
         self._check_incorrect_no_warning()
@@ -203,7 +208,30 @@ class CcTarget(Target):
             suffix = 'so'
         return os.path.join(self.path, 'lib%s_%s' % (options.m, options.profile),
                              'lib%s.%s' % (self.name, suffix))
+    
+    def _setup_install_dir(self, var_name):
+        if not self.data['install_dir']:
+            return
+        
+        env_name = self._env_name()
+        self._write_rule('%s.Install("%s", %s)' % (
+                env_name,
+                self.data['install_dir'],
+                var_name))
 
+    def _setup_extra_cmds(self, var_name):
+        if not self.data['extra_cmds']:
+            return
+        
+        env_name = self._env_name()
+        for cmd in self.data['extra_cmds']:
+            self._write_rule('%s.Command("%s_%s", %s, "%s $SOURCE")' % (
+                    env_name,
+                    cmd,
+                    var_name,
+                    var_name,
+                    cmd))
+        
     def _setup_cc_flags(self):
         """_setup_cc_flags. """
         env_name = self._env_name()
@@ -297,6 +325,8 @@ class CcTarget(Target):
         # Remove duplicate items in incs list and keep the order
         incs_list = []
         for inc in new_incs_list:
+            if inc.startswith('//') :
+                inc = inc[2:]
             new_inc = os.path.normpath(inc)
             if new_inc not in incs_list:
                 incs_list.append(new_inc)
@@ -372,10 +402,14 @@ class CcTarget(Target):
         deps = self.expanded_deps
         lib_list = []
         link_all_symbols_lib_list = []
+        
+        build_targets = self.blade.get_build_targets()
+        
         for dep in deps:
             if not self._dep_is_library(dep):
                 continue
-
+            if build_targets[dep].data.get('only_header'):
+                continue
             # system lib
             if dep[0] == '#':
                 lib_name = "'%s'" % dep[1]
@@ -619,8 +653,10 @@ class CcLibrary(CcTarget):
                  deprecated,
                  extra_cppflags,
                  extra_linkflags,
+                 only_header,
                  blade,
-                 kwargs):
+                 kwargs
+                 ):
         """Init method.
 
         Init the cc target.
@@ -637,12 +673,14 @@ class CcLibrary(CcTarget):
                           export_incs,
                           optimize,
                           extra_cppflags,
-                          extra_linkflags,
+                          extra_linkflags,'',[],
                           blade,
                           kwargs)
         if prebuilt:
             self.type = 'prebuilt_cc_library'
             self.srcs = []
+            self.data['only_header'] = only_header
+            
         self.data['link_all_symbols'] = link_all_symbols
         self.data['always_optimize'] = always_optimize
         self.data['deprecated'] = deprecated
@@ -666,7 +704,8 @@ class CcLibrary(CcTarget):
                          self.data.get('build_dynamic'))
 
         if self.type == 'prebuilt_cc_library':
-            self._prebuilt_cc_library(build_dynamic)
+            if not self.data['only_header']:
+                self._prebuilt_cc_library(build_dynamic)
         else:
             self._cc_objects_rules()
             self._cc_library()
@@ -689,7 +728,9 @@ def cc_library(name,
                deprecated=False,
                extra_cppflags=[],
                extra_linkflags=[],
-               **kwargs):
+               only_header=False,
+               **kwargs
+               ):
     """cc_library target. """
     target = CcLibrary(name,
                        srcs,
@@ -705,8 +746,10 @@ def cc_library(name,
                        deprecated,
                        extra_cppflags,
                        extra_linkflags,
+                       only_header,
                        blade.blade,
-                       kwargs)
+                       kwargs
+                       )
     if pre_build:
         console.warning("//%s:%s: 'pre_build' has been deprecated, "
                         "please use 'prebuilt'" % (target.path,
@@ -736,6 +779,8 @@ class CcBinary(CcTarget):
                  extra_cppflags,
                  extra_linkflags,
                  export_dynamic,
+                 install_dir,
+                 extra_cmds,
                  blade,
                  kwargs):
         """Init method.
@@ -755,6 +800,8 @@ class CcBinary(CcTarget):
                           optimize,
                           extra_cppflags,
                           extra_linkflags,
+                          install_dir,
+                          extra_cmds,
                           blade,
                           kwargs)
         self.data['dynamic_link'] = dynamic_link
@@ -815,6 +862,9 @@ class CcBinary(CcTarget):
             self._objs_name(),
             lib_str))
 
+        self._setup_extra_cmds(var_name)
+        self._setup_install_dir(var_name)
+        
         if link_all_symbols_lib_list:
             self._write_rule('%s.Depends(%s, [%s])' % (
                     env_name, var_name, ', '.join(link_all_symbols_lib_list)))
@@ -840,7 +890,10 @@ class CcBinary(CcTarget):
             self._target_file_path(),
             self._objs_name(),
             lib_str))
-
+        
+        self._setup_extra_cmds(var_name)
+        self._setup_install_dir(var_name)
+        
         self._write_rule('%s.Append(LINKFLAGS=str(version_obj[0]))' % env_name)
         self._write_rule('%s.Requires(%s, version_obj)' % (
                          env_name, var_name))
@@ -874,6 +927,8 @@ def cc_binary(name,
               extra_cppflags=[],
               extra_linkflags=[],
               export_dynamic=False,
+              install_dir='',
+              extra_cmds=[],
               **kwargs):
     """cc_binary target. """
     cc_binary_target = CcBinary(name,
@@ -887,6 +942,8 @@ def cc_binary(name,
                                 extra_cppflags,
                                 extra_linkflags,
                                 export_dynamic,
+                                install_dir,
+                                extra_cmds,
                                 blade.blade,
                                 kwargs)
     blade.blade.register_target(cc_binary_target)
@@ -927,6 +984,9 @@ class CcPlugin(CcTarget):
                  extra_cppflags,
                  extra_linkflags,
                  allow_undefined,
+                 link_version,
+                 install_dir,
+                 extra_cmds,
                  blade,
                  kwargs):
         """Init method.
@@ -946,11 +1006,14 @@ class CcPlugin(CcTarget):
                           optimize,
                           extra_cppflags,
                           extra_linkflags,
+                          install_dir,
+                          extra_cmds,
                           blade,
                           kwargs)
         self.prefix = prefix
         self.suffix = suffix
         self.data['allow_undefined'] = allow_undefined
+        self.data['link_version'] = link_version
 
     def scons_rules(self):
         """scons_rules.
@@ -992,6 +1055,13 @@ class CcPlugin(CcTarget):
                     self._target_file_path(),
                     self._objs_name(),
                     lib_str))
+            self._setup_extra_cmds(var_name)
+            self._setup_install_dir(var_name)
+
+        if self.data['link_version']:
+            self._write_rule('%s.Append(LINKFLAGS=str(version_obj[0]))' % env_name)
+            self._write_rule('%s.Requires(%s, version_obj)' % (
+                             env_name, var_name))
 
         if link_all_symbols_lib_list:
             self._write_rule('%s.Depends(%s, [%s])' % (
@@ -1010,6 +1080,9 @@ def cc_plugin(name,
               extra_cppflags=[],
               extra_linkflags=[],
               allow_undefined=True,
+              link_version=True,
+              install_dir='',
+              extra_cmds=[],
               **kwargs):
     """cc_plugin target. """
     target = CcPlugin(name,
@@ -1024,6 +1097,9 @@ def cc_plugin(name,
                       extra_cppflags,
                       extra_linkflags,
                       allow_undefined,
+                      link_version,
+                      install_dir,
+                      extra_cmds,
                       blade.blade,
                       kwargs)
     blade.blade.register_target(target)
